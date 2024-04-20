@@ -1,0 +1,129 @@
+
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+
+# Load the datasets
+train_data_path = 'C:\\Users\\musta\\Downloads\\mnsit\\mnist_train.csv'
+test_data_path = 'C:\\Users\\musta\\Downloads\\mnsit\\mnist_test.csv'
+
+train_df = pd.read_csv(train_data_path)
+test_df = pd.read_csv(test_data_path)
+
+# Split features and labels
+X_train = train_df.drop('label', axis=1).values
+y_train = train_df['label'].values
+
+X_test = test_df.drop('label', axis=1).values
+y_test = test_df['label'].values
+
+# Normalize the data
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Reshape for the CNN (1 channel, 28x28 images)
+X_train = X_train.reshape(-1, 28, 28, 1)
+X_test = X_test.reshape(-1, 28, 28, 1)
+
+# Define the CNN Model
+model = models.Sequential([
+    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.Flatten(),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(10, activation='softmax')
+])
+
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Train the Model
+model.fit(X_train, y_train, epochs=10, validation_split=0.1)
+
+# Evaluate the Model
+test_loss, test_acc = model.evaluate(X_test, y_test)
+print(f"Test accuracy: {test_acc}")
+
+model_save_path = 'C:\\Users\\musta\\Downloads\\mnsit\\mnist_cnn_model.h5'
+model.save(model_save_path)
+print(f"Model saved to {model_save_path}")
+
+
+
+import tkinter as tk
+from PIL import Image, ImageDraw
+import numpy as np
+import tensorflow as tf
+
+class DrawingApp:
+    def __init__(self, root, model_path):
+        self.root = root
+        self.root.title("Digit Prediction App")
+        self.canvas = tk.Canvas(root, width=280, height=280, bg='black')
+        self.canvas.pack()
+        
+        self.image = Image.new("RGB", (280, 280), "black")
+        self.draw = ImageDraw.Draw(self.image)
+        
+        self.model = tf.keras.models.load_model(model_path)
+        
+        self.canvas.bind("<B1-Motion>", self.paint)
+        
+        # Predict button
+        self.predict_button = tk.Button(root, text="Predict", command=self.predict)
+        self.predict_button.pack()
+        
+        # Clear button
+        self.clear_button = tk.Button(root, text="Clear", command=self.clear_canvas)
+        self.clear_button.pack()
+
+    def paint(self, event):
+        brush_size = 10  # Brush size for the canvas
+        x1, y1 = (event.x - brush_size), (event.y - brush_size)
+        x2, y2 = (event.x + brush_size), (event.y + brush_size)
+        self.canvas.create_oval(x1, y1, x2, y2, fill="white", outline="white")
+        
+        # Draw on the actual image
+        self.draw.ellipse([x1, y1, x2, y2], fill="white", outline="white")
+
+    def preprocess(self):
+        # Convert to grayscale and resize to 28x28 for the model
+        img = self.image.convert("L").resize((28, 28), Image.ANTIALIAS)
+        img_array = np.array(img)
+        img_array = img_array / 255.0  # Normalize to [0, 1]
+        img_array = img_array.reshape((1, 28, 28, 1))  # Reshape for the model
+        return img_array
+
+    def predict(self):
+        img_array = self.preprocess()
+        prediction = self.model.predict(img_array)
+        digit = np.argmax(prediction)
+        print(f"Predicted digit: {digit}")
+
+    def clear_canvas(self):
+        self.canvas.delete("all")
+        self.image = Image.new("RGB", (280, 280), "black")
+        self.draw = ImageDraw.Draw(self.image)
+
+    def save(self):
+        filename = "drawing.png"
+        self.image.save(filename)
+        print(f"Image saved as {filename}.")
+
+def main():
+    model_path = 'C:\\Users\\musta\\Downloads\\mnsit\\mnist_cnn_model.h5'
+    root = tk.Tk()
+    app = DrawingApp(root, model_path)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
